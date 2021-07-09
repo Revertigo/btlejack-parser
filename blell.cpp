@@ -49,27 +49,37 @@ enum cid{
     SMP     //Security Manager Protocol
 };
 
+enum pduPacketType{
+    CONNECT_REQ = 5
+};
+
 std::optional<blell> parseMessage(std::string & message){
     struct blell blell{};
 
-    if(!message.starts_with("LL Data: ")){
+    std::string startStr{"LL Data: "};
+    if(!message.starts_with(startStr)){
         return std::nullopt;
     }
-    else{
-        std::string bytesStr = message.substr(9);
-        //Remove all whitespaces from string
-        std::string::iterator end_pos = std::remove(bytesStr.begin(), bytesStr.end(), ' ');
-        bytesStr.erase(end_pos, bytesStr.end());
-        char messageBytes[sizeof (struct blell)]{};
-        std::string unHexed = boost::algorithm::unhex(bytesStr);
-        std::copy(unHexed.begin(), unHexed.end(), messageBytes);
 
-        //access_address not returned by the btlejack
-        size_t toCopy = sizeof(blell.header) + sizeof(blell.l2cap) - sizeof(blell.l2cap.bleatt.data);
-        memcpy(&blell.header, messageBytes, toCopy);
-        //Continue parsing according to blell.l2cap.length
-        memcpy(&blell.l2cap.bleatt.data, messageBytes + toCopy, blell.l2cap.length);
+    std::string bytesStr = message.substr(startStr.size());
+    //Remove all whitespaces from string
+    std::string::iterator end_pos = std::remove(bytesStr.begin(), bytesStr.end(), ' ');
+    bytesStr.erase(end_pos, bytesStr.end());
+    char messageBytes[sizeof (struct blell)]{};
+    std::string unHexed = boost::algorithm::unhex(bytesStr);
+    std::copy(unHexed.begin(), unHexed.end(), messageBytes);
+
+    //We don't want to parse a connection packet
+    if((messageBytes[0] & 0x0f) == CONNECT_REQ){
+        return std::nullopt;
     }
+    //access_address not returned by the btlejack tool
+    size_t toCopy = sizeof(blell.header) + sizeof(blell.l2cap) - sizeof(blell.l2cap.bleatt.data);
+    memcpy(&blell.header, messageBytes, toCopy);
+    //Continue parsing according to blell.l2cap.length
+    memcpy(&blell.l2cap.bleatt.data, messageBytes + toCopy,
+           std::min<uint16_t>(blell.l2cap.length, sizeof(blell.l2cap.bleatt.data)));
+
 
     return blell;
 }
@@ -81,48 +91,61 @@ uint16_t blell::toUint16(const uint8_t * value) const
 
 std::ostream & operator << (std::ostream & os, const struct blell blell){
     os << "Link Layer ID: ";
-    os << ToString(static_cast<llid>(blell.header.llid));
-    os << std::endl << "Payload Length: " << +blell.header.length << std::endl;
+    os << ToString(static_cast<llid>(blell.header.llid)) << std::endl;
+    os << "Payload Length: " << +blell.header.length << std::endl;
     os << "L2CAP Channel Identifier: ";
     os << (blell.l2cap.cid == ATTRIBUTE_PROTOCOL ? "Attribute Protocol" : "Not supported");
-    os << std::endl << "L2CAP Payload Length: " << blell.l2cap.length << std::endl;
+    os << std::endl << "L2CAP Payload Length: " << +blell.l2cap.length << std::endl;
     os << "Authentication Signature: ";
     os << (blell.l2cap.bleatt.opCode.authenticationSignature ? "True (signed by the sender)"
                                                              : "False (not signed by the sender)");
     os << std::endl << "Method: ";
-    uint16_t handle = blell.toUint16(&blell.l2cap.bleatt.data[0]);
+
     switch(blell.l2cap.bleatt.opCode.method) {
-        case BT_ATT_OP_ERROR_RSP:
+        case BT_ATT_OP_ERROR_RSP: {
             os << "Error Write To Handle";
             break;
-        case BT_ATT_OP_FIND_INFO_REQ:
+        }
+        case BT_ATT_OP_FIND_INFO_REQ: {
             os << "Service Discovery Request" << std::endl;
-            os << "Starting Handle: " << handle << std::endl;
-            os << "Ending handle: " << blell.toUint16(&blell.l2cap.bleatt.data[2]);
+            uint16_t startHandle = blell.toUint16(&blell.l2cap.bleatt.data[0]);
+            os << "Starting Handle: 0x" << std::hex << startHandle << std::endl;
+            uint16_t endHandle = blell.toUint16(&blell.l2cap.bleatt.data[2]);
+            os << "Ending handle: 0x" << std::hex << endHandle << std::dec;
             break;
-        case BT_ATT_OP_FIND_INFO_RSP:
+        }
+        case BT_ATT_OP_FIND_INFO_RSP: {
             os << "Service Discovery Response" << std::endl;
             os << "UUID Format: " << (blell.l2cap.bleatt.data[0] == 1 ? "16-bit UUIDs" : "128-bit UUIDs");
-            os << std::endl << "Handle: " << blell.toUint16(&blell.l2cap.bleatt.data[1]);
-            os << std::endl << "UUID: 0x" << std::hex << blell.toUint16(&blell.l2cap.bleatt.data[3]);
+            uint16_t handle = blell.toUint16(&blell.l2cap.bleatt.data[1]);
+            os << std::endl << "Handle: 0x" << std::hex << handle;
+            uint16_t uuid = blell.toUint16(&blell.l2cap.bleatt.data[3]);
+            os << std::endl << "UUID: 0x" << std::hex << uuid << std::dec;
             break;
-        case BT_ATT_OP_READ_REQ:
+        }
+        case BT_ATT_OP_READ_REQ: {
             os << "Read Request" << std::endl;
-            os << "Read Handle: #" << handle;
+            uint16_t handle = blell.toUint16(&blell.l2cap.bleatt.data[0]);
+            os << "Read Handle: 0x" << std::hex << handle << std::dec;
             break;
-        case BT_ATT_OP_READ_RSP:
+        }
+        case BT_ATT_OP_READ_RSP: {
             os << "Read Response" << std::endl;
             os << "Handle Response: " << blell.l2cap.bleatt.data;
             break;
-        case BT_ATT_OP_WRITE_REQ:
+        }
+        case BT_ATT_OP_WRITE_REQ: {
             os << "WRITE Request" << std::endl;
-            os << "Handle: #" << handle << std::endl;
+            uint16_t handle = blell.toUint16(&blell.l2cap.bleatt.data[0]);
+            os << "Handle: 0x" << std::hex << handle << std::dec << std::endl;
             os << "Data: " << (blell.l2cap.bleatt.data + 2);
             break;
-        case BT_ATT_OP_WRITE_RSP:
+        }
+        case BT_ATT_OP_WRITE_RSP: {
             os << "WRITE response" << std::endl;
             os << "Handle Response: " << blell.l2cap.bleatt.data;
             break;
+        }
     }
 
     return os;

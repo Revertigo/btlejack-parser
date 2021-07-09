@@ -44,7 +44,7 @@ struct blell{
     struct blel2cap l2cap;
     uint8_t crc[3];
 
-    friend std::ostream & operator << (std::ostream & os, struct blell blell);
+    friend std::ostream & operator << (std::ostream & os, const struct blell blell);
 
 private:
     uint16_t toUint16(const uint8_t * value) const;
