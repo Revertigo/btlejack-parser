@@ -47,7 +47,7 @@ struct blell{
     friend std::ostream & operator << (std::ostream & os, const struct blell blell);
 
 private:
-    uint16_t toUint16(const uint8_t * value) const;
+    static uint16_t toUint16(const uint8_t * value) ;
 }__attribute__((packed));
 
 std::optional<blell> parseMessage(std::string & message);

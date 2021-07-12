@@ -27,6 +27,7 @@
             default: return "[Unknown " BOOST_PP_STRINGIZE(name) "]";         \
         }                                                                     \
     }
+
 //Link Layer Identifier
 DEFINE_ENUM_WITH_STRING_CONVERSIONS(llid, (RESERVED)(DATA_PDU_CONTINUATION)
                                                             (DATA_PDU_START)(CONTROL_PDU))
@@ -49,6 +50,7 @@ enum cid{
     SMP     //Security Manager Protocol
 };
 
+//PDU types
 enum pduPacketType{
     CONNECT_REQ = 5
 };
@@ -84,7 +86,7 @@ std::optional<blell> parseMessage(std::string & message){
     return blell;
 }
 
-uint16_t blell::toUint16(const uint8_t * value) const
+uint16_t blell::toUint16(const uint8_t * value)
 {
     return value[1] * 256 + value[0];
 }
@@ -103,7 +105,7 @@ std::ostream & operator << (std::ostream & os, const struct blell blell){
 
     switch(blell.l2cap.bleatt.opCode.method) {
         case BT_ATT_OP_ERROR_RSP: {
-            os << "Error Write To Handle";
+            os << "Permissions Error";
             break;
         }
         case BT_ATT_OP_FIND_INFO_REQ: {
@@ -145,6 +147,10 @@ std::ostream & operator << (std::ostream & os, const struct blell blell){
             os << "WRITE response" << std::endl;
             os << "Handle Response: " << blell.l2cap.bleatt.data;
             break;
+        }
+        default:
+        {
+            os << "Not supported, 0x" << +blell.l2cap.bleatt.opCode.method << std::endl;
         }
     }
 
