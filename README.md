@@ -5,6 +5,11 @@ btlejack-parser it a simple tool which allows to parse and analyze packets inter
 The tool currently support analyzing small subset of the packets/fields of the Link Layer.
 
 ## Installation
+First, you have to install boost:
+```
+sudo apt-get install libboost-all-dev
+```
+Then build with cmake:
 ```
 mkdir build
 cd build
