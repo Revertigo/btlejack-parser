@@ -30,3 +30,5 @@ sudo btlejack -c any | tee btlejack_output
 ```
 This will print the original output of btlejack tool to the second terminal, while the first terminal parses the data comes from the btlejack process.
 This command is able to work with other commands which prints a BLE Link-Layer data.
+
+![btlejack-parser-example](https://user-images.githubusercontent.com/46284863/127038054-b66d2bec-ca41-430d-9479-253e7237d8ad.png)
