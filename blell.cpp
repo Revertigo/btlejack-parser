@@ -32,6 +32,11 @@
 DEFINE_ENUM_WITH_STRING_CONVERSIONS(llid, (RESERVED)(DATA_PDU_CONTINUATION)
                                                             (DATA_PDU_START)(CONTROL_PDU))
 
+DEFINE_ENUM_WITH_STRING_CONVERSIONS(ctrlOpCode, (LL_CONNECTION_UPDATE)(LL_CHANNEL_MAP_UPDATE)
+                                                            (LL_TERMINATE) (LL_ENC_REQ)
+                                                            (LL_ENC_RSP) (LL_START_ENC_REQ)
+                                                            (LL_START_ENC_RSP) (LL_UNKNOWN_RSP)
+                                                            (LL_FEATURE_REQ) (LL_FEATURE_RSP))
 //https://github.com/dlenski/ttblue/blob/master/att-types.h
 enum btattMethod{
     BT_ATT_OP_ERROR_RSP = 1,
@@ -95,63 +100,72 @@ std::ostream & operator << (std::ostream & os, const struct blell blell){
     os << "Link Layer ID: ";
     os << ToString(static_cast<llid>(blell.header.llid)) << std::endl;
     os << "Payload Length: " << +blell.header.length << std::endl;
-    os << "L2CAP Channel Identifier: ";
-    os << (blell.l2cap.cid == ATTRIBUTE_PROTOCOL ? "Attribute Protocol" : "Not supported");
-    os << std::endl << "L2CAP Payload Length: " << +blell.l2cap.length << std::endl;
-    os << "Authentication Signature: ";
-    os << (blell.l2cap.bleatt.opCode.authenticationSignature ? "True (signed by the sender)"
-                                                             : "False (not signed by the sender)");
-    os << std::endl << "Method: ";
+    if(blell.header.llid != CONTROL_PDU)
+    {        
+        os << "L2CAP Channel Identifier: ";
+        os << (blell.l2cap.cid == ATTRIBUTE_PROTOCOL ? "Attribute Protocol" : "Not supported");
+        os << std::endl << "L2CAP Payload Length: " << +blell.l2cap.length << std::endl;
+        os << "Authentication Signature: ";
+        os << (blell.l2cap.bleatt.opCode.authenticationSignature ? "True (signed by the sender)"
+                                                                : "False (not signed by the sender)");
+        os << std::endl << "Method: ";
 
-    switch(blell.l2cap.bleatt.opCode.method) {
-        case BT_ATT_OP_ERROR_RSP: {
-            os << "Permissions Error";
-            break;
+        switch(blell.l2cap.bleatt.opCode.method) {
+            case BT_ATT_OP_ERROR_RSP: {
+                os << "Permissions Error";
+                break;
+            }
+            case BT_ATT_OP_FIND_INFO_REQ: {
+                os << "Service Discovery Request" << std::endl;
+                uint16_t startHandle = blell.toUint16(&blell.l2cap.bleatt.data[0]);
+                os << "Starting Handle: 0x" << std::hex << startHandle << std::endl;
+                uint16_t endHandle = blell.toUint16(&blell.l2cap.bleatt.data[2]);
+                os << "Ending handle: 0x" << std::hex << endHandle << std::dec;
+                break;
+            }
+            case BT_ATT_OP_FIND_INFO_RSP: {
+                os << "Service Discovery Response" << std::endl;
+                os << "UUID Format: " << (blell.l2cap.bleatt.data[0] == 1 ? "16-bit UUIDs" : "128-bit UUIDs");
+                uint16_t handle = blell.toUint16(&blell.l2cap.bleatt.data[1]);
+                os << std::endl << "Handle: 0x" << std::hex << handle;
+                uint16_t uuid = blell.toUint16(&blell.l2cap.bleatt.data[3]);
+                os << std::endl << "UUID: 0x" << std::hex << uuid << std::dec;
+                break;
+            }
+            case BT_ATT_OP_READ_REQ: {
+                os << "Read Request" << std::endl;
+                uint16_t handle = blell.toUint16(&blell.l2cap.bleatt.data[0]);
+                os << "Read Handle: 0x" << std::hex << handle << std::dec;
+                break;
+            }
+            case BT_ATT_OP_READ_RSP: {
+                os << "Read Response" << std::endl;
+                os << "Handle Response: " << blell.l2cap.bleatt.data;
+                break;
+            }
+            case BT_ATT_OP_WRITE_REQ: {
+                os << "WRITE Request" << std::endl;
+                uint16_t handle = blell.toUint16(&blell.l2cap.bleatt.data[0]);
+                os << "Handle: 0x" << std::hex << handle << std::dec << std::endl;
+                os << "Data: " << (blell.l2cap.bleatt.data + 2);
+                break;
+            }
+            case BT_ATT_OP_WRITE_RSP: {
+                os << "WRITE response" << std::endl;
+                os << "Handle Response: " << blell.l2cap.bleatt.data;
+                break;
+            }
+            default:
+            {
+                os << "Not supported, 0x" << +blell.l2cap.bleatt.opCode.method << std::endl;
+            }
         }
-        case BT_ATT_OP_FIND_INFO_REQ: {
-            os << "Service Discovery Request" << std::endl;
-            uint16_t startHandle = blell.toUint16(&blell.l2cap.bleatt.data[0]);
-            os << "Starting Handle: 0x" << std::hex << startHandle << std::endl;
-            uint16_t endHandle = blell.toUint16(&blell.l2cap.bleatt.data[2]);
-            os << "Ending handle: 0x" << std::hex << endHandle << std::dec;
-            break;
-        }
-        case BT_ATT_OP_FIND_INFO_RSP: {
-            os << "Service Discovery Response" << std::endl;
-            os << "UUID Format: " << (blell.l2cap.bleatt.data[0] == 1 ? "16-bit UUIDs" : "128-bit UUIDs");
-            uint16_t handle = blell.toUint16(&blell.l2cap.bleatt.data[1]);
-            os << std::endl << "Handle: 0x" << std::hex << handle;
-            uint16_t uuid = blell.toUint16(&blell.l2cap.bleatt.data[3]);
-            os << std::endl << "UUID: 0x" << std::hex << uuid << std::dec;
-            break;
-        }
-        case BT_ATT_OP_READ_REQ: {
-            os << "Read Request" << std::endl;
-            uint16_t handle = blell.toUint16(&blell.l2cap.bleatt.data[0]);
-            os << "Read Handle: 0x" << std::hex << handle << std::dec;
-            break;
-        }
-        case BT_ATT_OP_READ_RSP: {
-            os << "Read Response" << std::endl;
-            os << "Handle Response: " << blell.l2cap.bleatt.data;
-            break;
-        }
-        case BT_ATT_OP_WRITE_REQ: {
-            os << "WRITE Request" << std::endl;
-            uint16_t handle = blell.toUint16(&blell.l2cap.bleatt.data[0]);
-            os << "Handle: 0x" << std::hex << handle << std::dec << std::endl;
-            os << "Data: " << (blell.l2cap.bleatt.data + 2);
-            break;
-        }
-        case BT_ATT_OP_WRITE_RSP: {
-            os << "WRITE response" << std::endl;
-            os << "Handle Response: " << blell.l2cap.bleatt.data;
-            break;
-        }
-        default:
-        {
-            os << "Not supported, 0x" << +blell.l2cap.bleatt.opCode.method << std::endl;
-        }
+    }
+    else
+    {
+        //in Control PDU, the packet has different fields. Thus we need to parse it differently.
+        uint8_t controlOpCode = blell.l2cap.length & 0xff;
+        os << "Control Opcode: " << ToString(static_cast<ctrlOpCode>(controlOpCode));
     }
 
     return os;
