@@ -91,7 +91,7 @@ uint16_t blell::toUint16(const uint8_t * value)
     return value[1] * 256 + value[0];
 }
 
-std::ostream & operator << (std::ostream & os, const struct blell blell){
+std::ostream & operator << (std::ostream & os, const struct blell & blell){
     os << "Link Layer ID: ";
     os << ToString(static_cast<llid>(blell.header.llid)) << std::endl;
     os << "Payload Length: " << +blell.header.length << std::endl;
